@@ -20,6 +20,7 @@ import preview from './preview/reducer';
 import posts from './posts/reducer';
 import plugins from './plugins/reducer';
 import postTypes from './post-types/reducer';
+import pushNotifications from './push-notifications/reducer';
 import reader from './reader/reducer';
 import receipts from './receipts/reducer';
 import sharing from './sharing/reducer';
@@ -50,6 +51,7 @@ export const reducer = combineReducers( {
 	preview,
 	posts,
 	postTypes,
+	pushNotifications,
 	reader,
 	receipts,
 	sharing,
