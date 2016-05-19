@@ -3,6 +3,7 @@
  */
 var ReactDom = require( 'react-dom' ),
 	React = require( 'react' ),
+	i18n = require( 'i18n-calypso' ),
 	page = require( 'page' );
 
 /**
@@ -10,7 +11,6 @@ var ReactDom = require( 'react-dom' ),
  */
 var sites = require( 'lib/sites-list' )(),
 	route = require( 'lib/route' ),
-	i18n = require( 'lib/mixins/i18n' ),
 	analytics = require( 'lib/analytics' ),
 	titlecase = require( 'to-title-case' ),
 	AdsUtils = require( 'lib/ads/utils' ),
