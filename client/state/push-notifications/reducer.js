@@ -7,17 +7,17 @@ import { combineReducers } from 'redux';
  * Internal dependencies
  */
 import {
+	PUSH_NOTIFICATIONS_API_READY,
 	PUSH_NOTIFICATIONS_AUTHORIZE,
-	PUSH_NOTIFICATIONS_DENY,
-	PUSH_NOTIFICATIONS_READY,
-	PUSH_NOTIFICATIONS_REGISTER,
-	PUSH_NOTIFICATIONS_UNREGISTER,
-	PUSH_NOTIFICATIONS_UPDATE_SUBSCRIPTIONS
+	PUSH_NOTIFICATIONS_BLOCK,
+	PUSH_NOTIFICATIONS_DISABLE,
+	PUSH_NOTIFICATIONS_ENABLE,
+	PUSH_NOTIFICATIONS_TOGGLE_NOTICE
 } from 'state/action-types';
 
 function settings( state = {}, action ) {
 	switch ( action.type ) {
-		case PUSH_NOTIFICATIONS_READY: {
+		case PUSH_NOTIFICATIONS_API_READY: {
 			return Object.assign( {}, state, {
 				ready: true
 			} );
@@ -25,39 +25,37 @@ function settings( state = {}, action ) {
 
 		case PUSH_NOTIFICATIONS_AUTHORIZE: {
 			return Object.assign( {}, state, {
-				authorized: true,
-				denied: false
+				authorized: true
 			} );
 		}
 
-		case PUSH_NOTIFICATIONS_DENY: {
+		case PUSH_NOTIFICATIONS_BLOCK: {
 			return Object.assign( {}, state, {
-				authorized: false,
-				denied: true
+				authorized: false
 			} );
 		}
 
-		case PUSH_NOTIFICATIONS_REGISTER: {
+		case PUSH_NOTIFICATIONS_DISABLE: {
 			return Object.assign( {}, state, {
-				registered: true
+				enabled: false
 			} );
 		}
 
-		case PUSH_NOTIFICATIONS_UNREGISTER: {
+		case PUSH_NOTIFICATIONS_ENABLE: {
 			return Object.assign( {}, state, {
-				registered: false
+				enabled: false
 			} );
 		}
 
-		case PUSH_NOTIFICATIONS_UPDATE_SUBSCRIPTIONS: {
-			const newSubscriptions = action.subscriptions || {};
+		case PUSH_NOTIFICATIONS_TOGGLE_NOTICE: {
 			return Object.assign( {}, state, {
-				subscriptions: Object.assign( {}, state.subscriptions, newSubscriptions )
+				showNotice: !! state.showNotice
 			} );
 		}
+
+		default:
+			return state;
 	}
-
-	return state;
 }
 
 export default combineReducers( {
