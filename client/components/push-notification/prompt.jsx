@@ -10,10 +10,14 @@ import { connect } from 'react-redux';
 import Notice from 'components/notice';
 import Button from 'components/button';
 import observe from 'lib/mixins/data-observe';
-import { dismissNotice } from 'state/push-notifications/actions';
+import {
+	dismissNotice,
+	enable,
+} from 'state/push-notifications/actions';
 import {
 	isApiReady,
 	isAuthorized,
+	isBlocked,
 	isEnabled,
 	isNoticeDismissed
 } from 'state/push-notifications/selectors';
@@ -68,16 +72,21 @@ const PushNotificationPrompt = React.createClass( {
 			</div>
 		);
 
-		return <Notice className="push-notification__notice" text={ noticeText } icon="bell" onDismissClick={ this.dismissNotice } />;
+		return <Notice className="push-notification__notice" text={ noticeText } icon="bell" onDismissClick={ this.props.dismissNotice } />;
 	},
 
 	render: function() {
-		if ( ! this.props.isApiReady ) {
+		if (
+			this.props.isBlocked ||
+			this.props.isEnabled ||
+			this.props.isNoticeDismissed ||
+			! this.props.isApiReady
+		) {
 			return null;
 		}
 		const user = this.props.user.get();
 
-		if ( ! user || ! user.email_verified || this.props.isNoticeDismissed || this.props.isEnabled ) {
+		if ( ! user || ! user.email_verified || this.props.isNoticeDismissed ) {
 			return null;
 		}
 
@@ -85,7 +94,7 @@ const PushNotificationPrompt = React.createClass( {
 			return null;
 		}
 
-		if ( ! ( this.props.isAuthorized && this.props.isEnabled && this.props.isNoticeDismissed ) ) {
+		if ( this.props.isAuthorized ) {
 			return null;
 		}
 
@@ -98,11 +107,13 @@ export default connect(
 		return {
 			isApiReady: isApiReady( state ),
 			isAuthorized: isAuthorized( state ),
+			isBlocked: isBlocked( state ),
 			isEnabled: isEnabled( state ),
 			isNoticeDismissed: isNoticeDismissed( state )
 		};
 	},
 	{
-		dismissNotice
+		dismissNotice,
+		enable
 	}
 )( PushNotificationPrompt );

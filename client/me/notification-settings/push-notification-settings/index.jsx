@@ -16,8 +16,9 @@ import Notice from 'components/notice';
 import observe from 'lib/mixins/data-observe';
 import {
 	getStatus,
-	isNoticeVisible,
-	isSubscribed
+	isApiReady,
+	isShowingUnblockInstructions,
+	isEnabled,
 } from 'state/push-notifications/selectors';
 import {
 	enable,
@@ -35,7 +36,7 @@ const PushNotificationSettings = React.createClass( {
 	},
 
 	clickHandler: function() {
-		if ( this.props.isSubscribed ) {
+		if ( this.props.isEnabled ) {
 			this.props.disable();
 			return;
 		}
@@ -87,6 +88,10 @@ const PushNotificationSettings = React.createClass( {
 			stateClass,
 			stateText;
 
+		if ( ! this.props.apiReady ) {
+			return null;
+		}
+
 		switch ( this.props.status ) {
 			case 'unsubscribed':
 				buttonClass = { 'is-enable': true };
@@ -95,6 +100,7 @@ const PushNotificationSettings = React.createClass( {
 				stateClass = { 'is-disabled': true };
 				stateText = this.translate( 'Disabled' );
 				break;
+			case 'enabled':
 			case 'subscribed':
 				buttonClass = { 'is-disable': true };
 				buttonDisabled = false;
@@ -148,8 +154,9 @@ const PushNotificationSettings = React.createClass( {
 export default connect(
 	( state ) => {
 		return {
-			isSubscribed: isSubscribed( state ),
-			showDialog: isNoticeVisible( state ),
+			apiReady: isApiReady( state ),
+			isEnabled: isEnabled( state ),
+			showDialog: isShowingUnblockInstructions( state ),
 			status: getStatus( state )
 		};
 	},
