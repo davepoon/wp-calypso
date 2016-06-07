@@ -12,7 +12,7 @@ import Button from 'components/button';
 import observe from 'lib/mixins/data-observe';
 import {
 	dismissNotice,
-	enable,
+	toggleEnabled,
 } from 'state/push-notifications/actions';
 import {
 	isApiReady,
@@ -65,7 +65,7 @@ const PushNotificationPrompt = React.createClass( {
 					{ this.translate(
 						'{{enableButton}}Enable Browser Notifications{{/enableButton}}', {
 							components: {
-								enableButton: <Button className={ 'push-notification__prompt-enable' } onClick={ this.props.enable } />
+								enableButton: <Button className={ 'push-notification__prompt-enable' } onClick={ this.props.toggleEnabled } />
 							} }
 					) }
 				</p>
@@ -114,6 +114,6 @@ export default connect(
 	},
 	{
 		dismissNotice,
-		enable
+		toggleEnabled
 	}
 )( PushNotificationPrompt );

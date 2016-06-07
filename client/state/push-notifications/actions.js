@@ -13,8 +13,7 @@ import {
 	PUSH_NOTIFICATIONS_API_NOT_READY,
 	PUSH_NOTIFICATIONS_AUTHORIZE,
 	PUSH_NOTIFICATIONS_BLOCK,
-	PUSH_NOTIFICATIONS_DISABLE,
-	PUSH_NOTIFICATIONS_ENABLE,
+	PUSH_NOTIFICATIONS_TOGGLE_ENABLED,
 	PUSH_NOTIFICATIONS_DISMISS_NOTICE,
 	PUSH_NOTIFICATIONS_MUST_PROMPT,
 	PUSH_NOTIFICATIONS_RECEIVE_DEACTIVATED_SUBSCRIPTION,
@@ -26,6 +25,7 @@ import {
 } from 'state/action-types';
 
 import {
+	isEnabled,
 	isPushNotificationsDenied,
 	isPushNotificationsSupported,
 } from './selectors';
@@ -120,12 +120,12 @@ export function triggerBrowserForPermission() {
 	return dispatch => {
 		window.navigator.serviceWorker.ready
 			.then( ( serviceWorkerRegistration ) => {
-				serviceWorkerRegistration.pushManager.subscribe( { userVisibleOnly: true } )
+				serviceWorkerRegistration.pushManager.permissionState( { userVisibleOnly: true } )
 					.then( permission => dispatch( receivedPermission( permission ) ) )
 					.catch( err => dispatch( receivedPermission( 'blocked', err ) ) )
 				;
 			} )
-			.catch( err => debug( 'Service worker not supported', err )	)
+			.catch( err => debug( 'Error triggering browser for permission', err ) )
 		;
 	};
 }
@@ -154,7 +154,7 @@ export function fetchPushManagerSubscription() {
 					.catch( err => debug( 'Error receiving subscription', err ) )
 				;
 			} )
-			.catch( err => debug( 'Service worker not supported', err )	)
+			.catch( err => debug( 'Error fetching push manager subscription', err )	)
 		;
 	};
 }
@@ -195,7 +195,7 @@ export function activateSubscription() {
 					.catch( err => dispatch( errorReceivingSubscription( err ) ) )
 				;
 			} )
-			.catch( err => debug( 'Service worker not supported', err )	)
+			.catch( err => debug( 'Error activating subscription', err )	)
 		;
 	};
 }
@@ -253,12 +253,12 @@ export function checkPermissionsState() {
 						dispatch( receivedPermission( pushMessagingState ) );
 					} )
 					.catch( err => {
-						debug( 'Error checking permissions state', err );
+						debug( 'Error checking permission state', err );
 						dispatch( receivedPermission( 'denied', err ) );
 					} )
 				;
 			} )
-			.catch( err => debug( 'Service worker not supported', err )	)
+			.catch( err => debug( 'Error checking permission state -- not ready', err )	)
 		;
 	};
 }
@@ -296,20 +296,14 @@ export function mustPrompt() {
 	};
 }
 
-export function disable() {
-	return dispatch => {
+export function toggleEnabled() {
+	return ( dispatch, getState ) => {
+		const enabling = !isEnabled( getState() );
+		console.log( 'enabling?', enabling );
 		dispatch( {
-			type: PUSH_NOTIFICATIONS_DISABLE
+			type: PUSH_NOTIFICATIONS_TOGGLE_ENABLED
 		} );
-		// @TODO dispatch delete PN sub, unregister device, etc.
-	};
-}
-
-export function enable() {
-	return dispatch => {
-		dispatch( {
-			type: PUSH_NOTIFICATIONS_ENABLE
-		} );
+		dispatch( triggerBrowserForPermission() );
 		// @TODO dispatch perm check, get PN sub, register device, etc.
 	};
 }
