@@ -5,7 +5,9 @@ export const isBlocked = ( state ) => !! state.pushNotifications.settings.blocke
 export const isEnabled = ( state ) => !! state.pushNotifications.settings.enabled;
 export const isNoticeDismissed = ( state ) => !! state.pushNotifications.settings.dismissedNotice;
 export const isShowingUnblockInstructions = ( state ) => !! state.pushNotifications.settings.showingUnblockInstructions;
-export const getSubscription = ( state ) => state.pushNotifications.settings.subscription;
+export const getSavedSubscription = ( state ) => state.pushNotifications.settings.subscription;
+export const getSavedWPCOMSubscription = ( state ) => state.pushNotifications.settings.wpcomSubscription;
+export const getLastUpdated = ( state ) => state.pushNotifications.settings.lastUpdated;
 
 export function isPushNotificationsSupported() {
 	return (
@@ -30,8 +32,8 @@ export function isPushNotificationsDenied() {
 }
 
 export function getDeviceId( state ) {
-	const subscription = getSubscription( state );
-	return subscription.deviceId;
+	const subscription = getSavedWPCOMSubscription( state );
+	return subscription.ID;
 }
 
 export function isNoticeVisible( state ) {
@@ -44,7 +46,7 @@ export function isNoticeVisible( state ) {
 }
 
 export function isSubscribed( state ) {
-	const subscription = getSubscription( state );
+	const subscription = getSavedSubscription( state );
 	return (
 		subscription &&
 		isEnabled( state ) &&

@@ -16,15 +16,17 @@ import {
 	PUSH_NOTIFICATIONS_TOGGLE_ENABLED,
 	PUSH_NOTIFICATIONS_DISMISS_NOTICE,
 	PUSH_NOTIFICATIONS_MUST_PROMPT,
-	PUSH_NOTIFICATIONS_RECEIVE_DEACTIVATED_SUBSCRIPTION,
 	PUSH_NOTIFICATIONS_RECEIVE_REGISTER_DEVICE,
 	PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION,
 	PUSH_NOTIFICATIONS_RECEIVE_UNREGISTER_DEVICE,
 	PUSH_NOTIFICATIONS_TOGGLE_UNBLOCK_INSTRUCTIONS,
-	PUSH_NOTIFICATIONS_UNSUBSCRIBE,
 } from 'state/action-types';
 
 import {
+	getDeviceId,
+	getLastUpdated,
+	getSavedSubscription,
+	isBlocked,
 	isEnabled,
 	isPushNotificationsDenied,
 	isPushNotificationsSupported,
@@ -44,7 +46,8 @@ export function init() {
 
 		if ( isPushNotificationsDenied() ) {
 			debug( 'Push Notifications have been denied' );
-			dispatch( apiNotReady() );
+			dispatch( block() );
+			dispatch( apiReady() );
 			return;
 		}
 
@@ -57,49 +60,47 @@ export function fetchAndLoadServiceWorker() {
 		debug( 'Registering service worker' );
 
 		window.navigator.serviceWorker.register( '/service-worker.js' )
-			.then( () => {
-				dispatch( apiReady() );
-				dispatch( checkPermissionsState() );
+			.then( ( serviceWorkerRegistration ) => {
+				dispatch( apiReady( serviceWorkerRegistration ) );
 			} )
 			.catch( err => dispatch( serviceWorkerLoadingError( err ) ) )
 		;
 	};
 }
 
-export function receivedDeactivatedSubscription() {
-	debug( 'Deactivated subscription' );
-	return {
-		type: PUSH_NOTIFICATIONS_RECEIVE_DEACTIVATED_SUBSCRIPTION,
-	};
-}
-
-/* @TODO fix this
 export function deactivateSubscription() {
 	return dispatch => {
 		window.navigator.serviceWorker.ready
-			.then( () => {
-				getPushManagerSubscription()
+			.then( ( serviceWorkerRegistration ) => {
+				serviceWorkerRegistration.pushManager.getSubscription()
 					.then( pushSubscription => {
 						if ( ! pushSubscription ) {
-							return dispatch( receivedDeactivatedSubscription() );
+							debug( 'Deactivated subscription' );
+							dispatch( receiveSubscription( null ) );
+							return;
 						}
 
-						unregisterDevice();
+						dispatch( unregisterDevice() );
 
 						pushSubscription.unsubscribe()
-							.then( () => resolve() )
+							.then( () => {
+								dispatch( receiveSubscription( null ) );
+							} )
 							.catch( ( err ) => {
 								debug( 'Error while unsubscribing', err );
-								reject( err );
 							} )
 						;
 					} )
-					.catch( err => reject( err ) )
+					.catch( err => {
+						debug( 'Error getting subscription to deactivate', err );
+
+						// @TODO is this correct behavior?
+						dispatch( receiveSubscription( null ) );
+					} )
 				;
 			} );
 	};
 }
-*/
 
 export function receivedPermission( permission ) {
 	return dispatch => {
@@ -116,16 +117,29 @@ export function receivedPermission( permission ) {
 	};
 }
 
-export function triggerBrowserForPermission() {
+export function triggerBrowserForPermission( serviceWorkerRegistration ) {
 	return dispatch => {
-		window.navigator.serviceWorker.ready
-			.then( ( serviceWorkerRegistration ) => {
+		debug( 'Triggering browser for permission' );
+		serviceWorkerRegistration.pushManager.subscribe( { userVisibleOnly: true } )
+			.then( subscription => {
+				debug( 'Got push manager subscription', subscription );
 				serviceWorkerRegistration.pushManager.permissionState( { userVisibleOnly: true } )
-					.then( permission => dispatch( receivedPermission( permission ) ) )
-					.catch( err => dispatch( receivedPermission( 'blocked', err ) ) )
+					.then( permissionState => {
+						debug( 'Got permission state', permissionState );
+						if ( 'granted' === permissionState ) {
+							dispatch( authorize() );
+						} else {
+							debug( 'not granted: ' + permissionState );
+							dispatch( toggleEnabled() );
+						}
+					} )
+					.catch( err => debug( 'Error getting subscription state', err ) )
 				;
 			} )
-			.catch( err => debug( 'Error triggering browser for permission', err ) )
+			.catch( err => {
+				dispatch( block() );
+				debug( 'Error prompting for subscription', err );
+			} )
 		;
 	};
 }
@@ -136,9 +150,16 @@ export function apiNotReady() {
 	};
 }
 
-export function apiReady() {
-	return dispatch => {
-		dispatch( receiveApiReady() );
+export function apiReady( serviceWorkerRegistration ) {
+	return ( dispatch, getState ) => {
+		dispatch( {
+			type: PUSH_NOTIFICATIONS_API_READY
+		} );
+		const state = getState();
+		if ( ! isBlocked( state ) && isEnabled( state ) ) {
+			dispatch( checkPermissionsState() );
+			dispatch( triggerBrowserForPermission( serviceWorkerRegistration ) );
+		}
 	};
 }
 
@@ -149,7 +170,7 @@ export function fetchPushManagerSubscription() {
 				serviceWorkerRegistration.pushManager.getSubscription()
 					.then( subscription => {
 						dispatch( receiveSubscription( subscription ) );
-						debug( 'have sub, @TODO do something with it', subscription );
+						dispatch( sendSubscriptionToWPCOM() );
 					} )
 					.catch( err => debug( 'Error receiving subscription', err ) )
 				;
@@ -159,39 +180,48 @@ export function fetchPushManagerSubscription() {
 	};
 }
 
-export function receiveApiReady() {
-	return {
-		type: PUSH_NOTIFICATIONS_API_READY
-	};
-}
+export function sendSubscriptionToWPCOM() {
+	return ( dispatch, getState ) => {
+		const state = getState();
+		const lastUpdated = getLastUpdated( state );
+		debug( 'Subscription last updated: ' + lastUpdated );
 
-export function saveSubscription( subscription ) {
-	debug( 'Saving subscription', subscription );
-	/* @TODO fix this!
-	const oldSub = getSubscription();
-	const lastUpdated = oldSub.lastModified;
+		let age;
 
-	let age;
+		if ( lastUpdated ) {
+			age = moment().diff( moment( lastUpdated ), 'days' );
+			if ( age < DAYS_BEFORE_FORCING_REGISTRATION_REFRESH ) {
+				debug( 'Subscription did not need updating.', age );
+				return;
+			}
+		}
 
-	if ( lastUpdated ) {
-		age = moment().diff( moment( lastUpdated ), 'days' );
-		if ( age > DAYS_BEFORE_FORCING_REGISTRATION_REFRESH ) {
-			debug( 'Subscription did not need updating.', age );
+		debug( 'Subscription needed updating.', age );
+
+		const sub = getSavedSubscription( state );
+		if ( ! sub ) {
+			debug( 'No subscription to send to WPCOM' );
+			// @TODO dispatch something :)
 			return;
 		}
-	}
+		debug( 'Sending subscription to WPCOM', sub );
 
-	debug( 'Subscription needed updating.', age );
-	registerDevice();
-	*/
+		wpcom.undocumented().registerDevice( JSON.stringify( sub ), 'browser', 'Browser' )
+			.then( data => dispatch( {
+				type: PUSH_NOTIFICATIONS_RECEIVE_REGISTER_DEVICE,
+				data
+			} ) )
+			.catch( ( err ) => debug( 'Couldn\'t register device', err ) )
+		;
+	};
 }
 
 export function activateSubscription() {
 	return dispatch => {
 		window.navigator.serviceWorker.ready
-			.then( ( serviceWorkerRegistration ) => {
+			.then( serviceWorkerRegistration => {
 				serviceWorkerRegistration.pushManager.subscribe( { userVisibleOnly: true } )
-					.then( subscription => dispatch( receivedSubscription( subscription ) ) )
+					.then( subscription => dispatch( receiveSubscription( subscription ) ) )
 					.catch( err => dispatch( errorReceivingSubscription( err ) ) )
 				;
 			} )
@@ -200,46 +230,26 @@ export function activateSubscription() {
 	};
 }
 
-export function receivedSubscription( subscription ) {
-	return {
-		type: PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION,
-		subscription: subscription
-	};
-}
-
 export function errorReceivingSubscription( err ) {
 	return () => debug( 'Error receiving subscription', err );
 }
 
-export function registerDevice( subscription ) {
-	return dispatch => {
-		wpcom.undocumented().registerDevice( subscription, 'browser', 'Browser' )
+export function unregisterDevice() {
+	return ( dispatch, getState ) => {
+		const deviceId = getDeviceId( getState() );
+		if ( ! deviceId ) {
+			debug( 'Couldn\'t unregister device. Unknown device ID' );
+			return;
+		}
+		wpcom.undocumented().unregisterDevice( deviceId )
 			.then( ( data ) => {
+				debug( 'Successfully unregistered device', data );
 				dispatch( {
-					type: PUSH_NOTIFICATIONS_RECEIVE_REGISTER_DEVICE,
+					type: PUSH_NOTIFICATIONS_RECEIVE_UNREGISTER_DEVICE,
 					data
 				} );
 			} )
-			.catch( ( err ) => debug( 'Couldn\'t register device', err ) )
-		;
-	};
-}
-
-export function unregisterDevice( deviceId ) {
-	return dispatch => {
-		wpcom.undocumented().unregisterDevice( deviceId )
-			.then( ( data ) => {
-				debug( 'Unregistered device', data );
-				dispatch( receiveUnregisterDevice( data ) );
-			} )
 			.catch( ( err ) => debug( 'Couldn\'t unregister device', err ) );
-	};
-}
-
-export function receiveUnregisterDevice( data ) {
-	return {
-		type: PUSH_NOTIFICATIONS_RECEIVE_UNREGISTER_DEVICE,
-		data
 	};
 }
 
@@ -298,12 +308,17 @@ export function mustPrompt() {
 
 export function toggleEnabled() {
 	return ( dispatch, getState ) => {
-		const enabling = !isEnabled( getState() );
-		console.log( 'enabling?', enabling );
+		const enabling = ! isEnabled( getState() );
+		const doing = enabling ? 'enabling' : 'disabling';
+		debug( doing );
 		dispatch( {
 			type: PUSH_NOTIFICATIONS_TOGGLE_ENABLED
 		} );
-		dispatch( triggerBrowserForPermission() );
+		if ( enabling ) {
+			dispatch( fetchAndLoadServiceWorker() );
+		} else {
+			dispatch( deactivateSubscription() );
+		}
 		// @TODO dispatch perm check, get PN sub, register device, etc.
 	};
 }
@@ -324,11 +339,5 @@ export function toggleUnblockInstructions() {
 export function dismissNotice() {
 	return {
 		type: PUSH_NOTIFICATIONS_DISMISS_NOTICE
-	};
-}
-
-export function unsubscribe() {
-	return {
-		type: PUSH_NOTIFICATIONS_UNSUBSCRIBE
 	};
 }

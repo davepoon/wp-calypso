@@ -4,6 +4,7 @@
 import { combineReducers } from 'redux';
 import debugFactory from 'debug';
 import moment from 'moment';
+import pick from 'lodash/pick';
 
 /**
  * Internal dependencies
@@ -13,11 +14,10 @@ import {
 	PUSH_NOTIFICATIONS_API_READY,
 	PUSH_NOTIFICATIONS_AUTHORIZE,
 	PUSH_NOTIFICATIONS_BLOCK,
-	PUSH_NOTIFICATIONS_DISABLE,
 	PUSH_NOTIFICATIONS_DISMISS_NOTICE,
 	PUSH_NOTIFICATIONS_MUST_PROMPT,
 	PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION,
-	PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION_STATE,
+	PUSH_NOTIFICATIONS_RECEIVE_REGISTER_DEVICE,
 	PUSH_NOTIFICATIONS_RECEIVE_UNREGISTER_DEVICE,
 	PUSH_NOTIFICATIONS_SUBSCRIBE,
 	PUSH_NOTIFICATIONS_TOGGLE_ENABLED,
@@ -120,7 +120,33 @@ function settings( state = {}, action ) {
 			}
 			debug( 'Deleted subscription', data );
 			return Object.assign( {}, state, {
-				subscription: null
+				lastUpdated: null,
+				wpcomSubscription: null
+			} );
+		}
+
+		case PUSH_NOTIFICATIONS_RECEIVE_REGISTER_DEVICE: {
+			const { data } = action;
+			debug( 'Received WPCOM device registration results', data );
+			const wpcomSubscription = pick( data, [ 'ID', 'settings' ] );
+			let lastUpdated;
+
+			if ( data && data._headers && data._headers.Date ) {
+				lastUpdated = new Date( lastUpdated );
+				if ( lastUpdated.getTime() ) {
+					// Calling moment with non-ISO date strings is deprecated
+					// see: https://github.com/moment/moment/issues/1407
+					lastUpdated = moment( lastUpdated.toISOString() ).format();
+				} else {
+					lastUpdated = moment().format();
+				}
+			} else {
+				lastUpdated = moment().format();
+			}
+
+			return Object.assign( {}, state, {
+				lastUpdated,
+				wpcomSubscription
 			} );
 		}
 
@@ -128,28 +154,8 @@ function settings( state = {}, action ) {
 			const subscription = action.subscription;
 			debug( 'receive subscription', subscription );
 
-			if ( ! subscription ) {
-				return state;
-			}
 			return Object.assign( {}, state, {
 				subscription,
-			} );
-		}
-
-		case PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION_STATE: {
-			const {
-				pushMessagingState,
-				err
-			} = action;
-
-			console.log( 'PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION_STATE', action );
-			if ( err ) {
-				debug( 'Received erroneous subscription state', pushMessagingState, err );
-				return;
-			}
-
-			return Object.assign( {}, state, {
-				pushMessagingState
 			} );
 		}
 
