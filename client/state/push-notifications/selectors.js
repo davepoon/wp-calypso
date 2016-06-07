@@ -4,13 +4,41 @@ export const isAuthorized = ( state ) => !! state.pushNotifications.settings.aut
 export const isBlocked = ( state ) => !! state.pushNotifications.settings.blocked;
 export const isEnabled = ( state ) => !! state.pushNotifications.settings.enabled;
 export const isNoticeDismissed = ( state ) => !! state.pushNotifications.settings.dismissedNotice;
+export const isShowingUnblockInstructions = ( state ) => !! state.pushNotifications.settings.showingUnblockInstructions;
 export const getSubscription = ( state ) => state.pushNotifications.settings.subscription;
+
+export function isPushNotificationsSupported() {
+	return (
+		isServiceWorkerSupported() &&
+		'showNotification' in window.ServiceWorkerRegistration.prototype &&
+		'PushManager' in window
+	);
+}
+
+export function isServiceWorkerSupported() {
+	return (
+		'serviceWorker' in window.navigator &&
+		'ServiceWorkerRegistration' in window
+	);
+}
+
+export function isPushNotificationsDenied() {
+	return (
+		( ! ( 'Notification' in window ) ) ||
+		'denied' === window.Notification.permission
+	);
+}
+
+export function getDeviceId( state ) {
+	const subscription = getSubscription( state );
+	return subscription.deviceId;
+}
 
 export function isNoticeVisible( state ) {
 	return (
 		isApiReady( state ) &&
-		isAuthorized( state ) &&
-		isEnabled( state ) &&
+		! isAuthorized( state ) &&
+		! isEnabled( state ) &&
 		! isNoticeDismissed( state )
 	);
 }
@@ -25,18 +53,16 @@ export function isSubscribed( state ) {
 }
 
 export function getStatus( state ) {
-	// Status is one of: 'unknown', 'subscribed', 'unsubscribed', or 'denied'
-	if ( isSubscribed( state ) ) {
-		return 'subscribed';
-	}
-
 	if ( isBlocked( state ) ) {
 		return 'denied';
 	}
 
-	if ( isAuthorized( state ) ) {
-		return 'unsubscribed';
+	if ( isEnabled( state ) ) {
+		if ( isSubscribed( state ) ) {
+			return 'subscribed';
+		}
+		return 'enabled';
 	}
 
-	return 'unknown';
+	return 'unsubscribed';
 }

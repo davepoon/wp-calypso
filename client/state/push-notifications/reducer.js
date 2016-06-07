@@ -2,6 +2,7 @@
  * External dependencies
  */
 import { combineReducers } from 'redux';
+import debugFactory from 'debug';
 import moment from 'moment';
 
 /**
@@ -15,19 +16,34 @@ import {
 	PUSH_NOTIFICATIONS_DISABLE,
 	PUSH_NOTIFICATIONS_DISMISS_NOTICE,
 	PUSH_NOTIFICATIONS_ENABLE,
+	PUSH_NOTIFICATIONS_MUST_PROMPT,
+	PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION,
+	PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION_STATE,
+	PUSH_NOTIFICATIONS_RECEIVE_UNREGISTER_DEVICE,
 	PUSH_NOTIFICATIONS_SUBSCRIBE,
 	PUSH_NOTIFICATIONS_TOGGLE_UNBLOCK_INSTRUCTIONS,
 	PUSH_NOTIFICATIONS_UNSUBSCRIBE,
 } from 'state/action-types';
+const debug = debugFactory( 'calypso:push-notifications' );
 
 function settings( state = {}, action ) {
 	switch ( action.type ) {
 		case DESERIALIZE: {
+			// Don't persist these
 			return Object.assign( {}, state, {
-				apiReady: false
+				// API status & permissions should be checked on boot
+				apiReady: false,
+				authorized: false,
+				blocked: false,
+
+				// The dialog should default to hidden @TODO move to ui subtree?
+				showingUnblockInstructions: false,
+
+				// @TODO enforce TTL on dismissedNotice
 			} );
 		}
 		case PUSH_NOTIFICATIONS_API_READY: {
+			debug( 'API is ready' );
 			return Object.assign( {}, state, {
 				apiReady: true
 			} );
@@ -47,6 +63,13 @@ function settings( state = {}, action ) {
 			} );
 		}
 
+		case PUSH_NOTIFICATIONS_MUST_PROMPT: {
+			return Object.assign( {}, state, {
+				authorized: false,
+				blocked: false
+			} );
+		}
+
 		case PUSH_NOTIFICATIONS_DISABLE: {
 			return Object.assign( {}, state, {
 				enabled: false
@@ -55,19 +78,14 @@ function settings( state = {}, action ) {
 
 		case PUSH_NOTIFICATIONS_ENABLE: {
 			return Object.assign( {}, state, {
-				enabled: false
+				enabled: true
 			} );
 		}
 
 		case PUSH_NOTIFICATIONS_DISMISS_NOTICE: {
 			return Object.assign( {}, state, {
-				dismissedNotice: !! state.dismissedNotice
-			} );
-		}
-
-		case PUSH_NOTIFICATIONS_DISMISS_NOTICE: {
-			return Object.assign( {}, state, {
-				dismissedNotice: !! state.dismissedNotice
+				dismissedNotice: true,
+				dismissedNoticeAt: ( new Date() ).getTime(),
 			} );
 		}
 
@@ -91,13 +109,53 @@ function settings( state = {}, action ) {
 
 		case PUSH_NOTIFICATIONS_TOGGLE_UNBLOCK_INSTRUCTIONS: {
 			return Object.assign( {}, state, {
-				showUnblockInstructions: !! state.showUnblockInstructions
+				showingUnblockInstructions: !state.showingUnblockInstructions
 			} );
 		}
 
 		case PUSH_NOTIFICATIONS_UNSUBSCRIBE: {
 			return Object.assign( {}, state, {
 				subscription: null
+			} );
+		}
+
+		case PUSH_NOTIFICATIONS_RECEIVE_UNREGISTER_DEVICE: {
+			const { data } = action;
+			if ( ! data.success ) {
+				debug( 'Couldn\'t unregister device', data );
+			}
+			debug( 'Deleted subscription', data );
+			return Object.assign( {}, state, {
+				subscription: null
+			} );
+		}
+
+		case PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION: {
+			const subscription = action.subscription;
+			debug( 'receive subscription', subscription );
+
+			if ( ! subscription ) {
+				return state;
+			}
+			return Object.assign( {}, state, {
+				subscription,
+			} );
+		}
+
+		case PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION_STATE: {
+			const {
+				pushMessagingState,
+				err
+			} = action;
+
+			console.log( 'PUSH_NOTIFICATIONS_RECEIVE_SUBSCRIPTION_STATE', action );
+			if ( err ) {
+				debug( 'Received erroneous subscription state', pushMessagingState, err );
+				return;
+			}
+
+			return Object.assign( {}, state, {
+				pushMessagingState
 			} );
 		}
 
