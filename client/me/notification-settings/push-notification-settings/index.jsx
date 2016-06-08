@@ -21,27 +21,20 @@ import {
 	isEnabled,
 } from 'state/push-notifications/selectors';
 import {
-	enable,
-	disable,
+	toggleEnabled,
 	toggleUnblockInstructions
 } from 'state/push-notifications/actions';
 
 const PushNotificationSettings = React.createClass( {
 	displayName: 'PushNotificationSettings',
 
-	mixins: [ observe( 'pushNotifications' ) ],
-
 	propTypes: {
-		pushNotifications: React.PropTypes.object
+		toggleEnabled: React.PropTypes.func.isRequired,
+		toggleUnblockInstructions: React.PropTypes.func.isRequired
 	},
 
 	clickHandler: function() {
-		if ( this.props.isEnabled ) {
-			this.props.disable();
-			return;
-		}
-
-		this.props.enable();
+		this.props.toggleEnabled();
 	},
 
 	getBlockedInstruction: function() {
@@ -161,8 +154,7 @@ export default connect(
 		};
 	},
 	{
-		enable,
-		disable,
+		toggleEnabled,
 		toggleUnblockInstructions
 	}
 )( PushNotificationSettings );
